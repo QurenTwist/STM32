@@ -18,11 +18,13 @@
 /* USER CODE END Header */
 
 /* Includes ------------------------------------------------------------------*/
+#include <string.h>
+
 #include "FreeRTOS.h"
 #include "task.h"
 #include "main.h"
 #include "cmsis_os.h"
-
+#include "usart.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -62,10 +64,17 @@ const osThreadAttr_t RedLEDTask_attributes = {
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityLow,
 };
-/* Definitions for GreenLEDTask */
-osThreadId_t GreenLEDTaskHandle;
-const osThreadAttr_t GreenLEDTask_attributes = {
-  .name = "GreenLEDTask",
+/* Definitions for USART1Task */
+osThreadId_t USART1TaskHandle;
+const osThreadAttr_t USART1Task_attributes = {
+  .name = "USART1Task",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityLow,
+};
+/* Definitions for TFTLCDTask */
+osThreadId_t TFTLCDTaskHandle;
+const osThreadAttr_t TFTLCDTask_attributes = {
+  .name = "TFTLCDTask",
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityLow,
 };
@@ -77,7 +86,8 @@ const osThreadAttr_t GreenLEDTask_attributes = {
 
 void StartDefaultTask(void *argument);
 void StartRedLEDTask(void *argument);
-void StartGreenLEDTask(void *argument);
+void StartUSART1Task(void *argument);
+void StartTFTLCDTask(void *argument);
 
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
@@ -114,8 +124,11 @@ void MX_FREERTOS_Init(void) {
   /* creation of RedLEDTask */
   RedLEDTaskHandle = osThreadNew(StartRedLEDTask, NULL, &RedLEDTask_attributes);
 
-  /* creation of GreenLEDTask */
-  GreenLEDTaskHandle = osThreadNew(StartGreenLEDTask, NULL, &GreenLEDTask_attributes);
+  /* creation of USART1Task */
+  USART1TaskHandle = osThreadNew(StartUSART1Task, NULL, &USART1Task_attributes);
+
+  /* creation of TFTLCDTask */
+  TFTLCDTaskHandle = osThreadNew(StartTFTLCDTask, NULL, &TFTLCDTask_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -164,23 +177,42 @@ void StartRedLEDTask(void *argument)
   /* USER CODE END StartRedLEDTask */
 }
 
-/* USER CODE BEGIN Header_StartGreenLEDTask */
+/* USER CODE BEGIN Header_StartUSART1Task */
 /**
-* @brief Function implementing the GreenLEDTask thread.
+* @brief Function implementing the USART1Task thread.
 * @param argument: Not used
 * @retval None
 */
-/* USER CODE END Header_StartGreenLEDTask */
-void StartGreenLEDTask(void *argument)
+/* USER CODE END Header_StartUSART1Task */
+void StartUSART1Task(void *argument)
 {
-  /* USER CODE BEGIN StartGreenLEDTask */
+  /* USER CODE BEGIN StartUSART1Task */
+  char msg[]="Hello Wrold!";
   /* Infinite loop */
   for(;;)
   {
-    HAL_GPIO_TogglePin(LED1_GPIO_Port,LED1_Pin);
-    osDelay(200);
+    HAL_UART_Transmit(&huart1, (uint8_t *)msg, strlen(msg), 1000);
+    osDelay(500);
   }
-  /* USER CODE END StartGreenLEDTask */
+  /* USER CODE END StartUSART1Task */
+}
+
+/* USER CODE BEGIN Header_StartTFTLCDTask */
+/**
+* @brief Function implementing the TFTLCDTask thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartTFTLCDTask */
+void StartTFTLCDTask(void *argument)
+{
+  /* USER CODE BEGIN StartTFTLCDTask */
+  /* Infinite loop */
+  for(;;)
+  {
+    osDelay(1);
+  }
+  /* USER CODE END StartTFTLCDTask */
 }
 
 /* Private application code --------------------------------------------------*/
