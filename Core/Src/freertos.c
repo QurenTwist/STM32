@@ -136,10 +136,38 @@ void MX_FREERTOS_Init(void) {
 void StartDefaultTask(void *argument)
 {
   /* USER CODE BEGIN StartDefaultTask */
+  
+  // 1. 初始化 ESP8266
+  ESP8266_Init();
+  
+  // 2. 连接 WiFi (请修改为真实的 SSID 和 Password)
+  if (!ESP8266_JoinWiFi("Ciallo~", "zhangzc123")) {
+      // WiFi 连接失败处理
+      printf("WiFi Connect Failed!\n");
+  }
+  
+  // 3. 连接服务器
+  if (ESP8266_ConnectServer("45.192.106.45", 8080)) {
+      // 连接成功处理
+      printf("Server Connect Success!\n");
+  } else {
+      // 连接失败处理
+      printf("Server Connect Failed!\n");
+  }
+
   /* Infinite loop */
   for(;;)
   {
-    osDelay(1);
+    // 构造测试数据
+    static int counter = 0;
+    char json_data[64];
+    sprintf(json_data, "{\"device_id\":\"stm32_01\",\"value\":%d}", counter++);
+    
+    // 发送数据
+    ESP8266_SendJSON(json_data);
+    
+    // 每 5 秒发送一次
+    osDelay(5000);
   }
   /* USER CODE END StartDefaultTask */
 }
