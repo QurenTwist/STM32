@@ -25,7 +25,13 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
+#include "adc.h"
+#include "usart.h"
+#include "tftlcd.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -35,6 +41,16 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+char message[50]={};
+int len=0;
+typedef struct {
+  float temp_voltage;
+  float light_voltage;
+  float Temperature;
+  float Illumination;
+} Sensor;
+
+
 
 /* USER CODE END PD */
 
@@ -47,17 +63,17 @@
 /* USER CODE BEGIN Variables */
 
 /* USER CODE END Variables */
-/* Definitions for defaultTask */
-osThreadId_t defaultTaskHandle;
-const osThreadAttr_t defaultTask_attributes = {
-  .name = "defaultTask",
+/* Definitions for NTCTask */
+osThreadId_t NTCTaskHandle;
+const osThreadAttr_t NTCTask_attributes = {
+  .name = "NTCTask",
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
-/* Definitions for RedLEDTask */
-osThreadId_t RedLEDTaskHandle;
-const osThreadAttr_t RedLEDTask_attributes = {
-  .name = "RedLEDTask",
+/* Definitions for LightSensorTask */
+osThreadId_t LightSensorTaskHandle;
+const osThreadAttr_t LightSensorTask_attributes = {
+  .name = "LightSensorTask",
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityLow,
 };
@@ -81,8 +97,8 @@ const osThreadAttr_t TFTLCDTask_attributes = {
 
 /* USER CODE END FunctionPrototypes */
 
-void StartDefaultTask(void *argument);
-void StartRedLEDTask(void *argument);
+void StartNTCTask(void *argument);
+void StartLightSenserTask(void *argument);
 void StartUSART1Task(void *argument);
 void StartTFTLCDTask(void *argument);
 
@@ -132,11 +148,11 @@ void MX_FREERTOS_Init(void) {
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
-  /* creation of defaultTask */
-  defaultTaskHandle = osThreadNew(StartDefaultTask, NULL, &defaultTask_attributes);
+  /* creation of NTCTask */
+  NTCTaskHandle = osThreadNew(StartNTCTask, NULL, &NTCTask_attributes);
 
-  /* creation of RedLEDTask */
-  RedLEDTaskHandle = osThreadNew(StartRedLEDTask, NULL, &RedLEDTask_attributes);
+  /* creation of LightSensorTask */
+  LightSensorTaskHandle = osThreadNew(StartLightSenserTask, NULL, &LightSensorTask_attributes);
 
   /* creation of USART1Task */
   USART1TaskHandle = osThreadNew(StartUSART1Task, NULL, &USART1Task_attributes);
@@ -154,41 +170,73 @@ void MX_FREERTOS_Init(void) {
 
 }
 
-/* USER CODE BEGIN Header_StartDefaultTask */
+/* USER CODE BEGIN Header_StartNTCTask */
 /**
-  * @brief  Function implementing the defaultTask thread.
+  * @brief  Function implementing the NTCTask thread.
   * @param  argument: Not used
   * @retval None
   */
-/* USER CODE END Header_StartDefaultTask */
-void StartDefaultTask(void *argument)
+
+
+/* USER CODE END Header_StartNTCTask */
+void StartNTCTask(void *argument)
 {
-  /* USER CODE BEGIN StartDefaultTask */
+  /* USER CODE BEGIN StartNTCTask */
+  Sensor sensordata;
+  uint32_t raw_temp=0;
+  uint32_t temp_voltage=0;
+  uint32_t Temperature=0;
+  /* Infinite loop */
+  for(;;)
+  {
+    if (HAL_ADC_Start(&hadc1)!=HAL_OK)
+    {Error_Handler();}
+    if (HAL_ADC_PollForConversion(&hadc1,500)==HAL_OK)
+    {
+      raw_temp=HAL_ADC_GetValue(&hadc1); //获取ADC值
+      HAL_ADC_Stop(&hadc1);
+      temp_voltage=raw_temp*3.3/4095.0*1000; //计算电压值，单位mv
+      Temperature=(uint32_t) (Calculate_NTC_Temperature(raw_temp*3.3/4095.0f)*100); //计算温度值，单位摄氏度
+
+
+      // 使用的是 STM32 的标准库（非 CMSIS 或 FPU 支持），而 sprintf() 不支持浮点数！
+      // 在没有启用 FPU（浮点单元）的 STM32 上，标准 printf / sprintf 默认不支持 %f 格式符！
+
+
+      sprintf(message, "Temp_voltage:%lu mV\r\n", temp_voltage);
+      HAL_UART_Transmit(&huart1, (uint8_t*)message, strlen(message), 1000);
+
+      sprintf(message, "Temperature:%ld.%02ld C\r\n",
+              Temperature / 100, abs(Temperature % 100));
+
+      HAL_UART_Transmit(&huart1, (uint8_t*)message, strlen(message), 1000);
+
+      //LCD_ShowString(10,10,100, 30, 16, (u8*)message);
+    }
+    else
+    {Error_Handler();}
+
+    osDelay(500);
+  }
+  /* USER CODE END StartNTCTask */
+}
+
+/* USER CODE BEGIN Header_StartLightSenserTask */
+/**
+* @brief Function implementing the LightSensorTask thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartLightSenserTask */
+void StartLightSenserTask(void *argument)
+{
+  /* USER CODE BEGIN StartLightSenserTask */
   /* Infinite loop */
   for(;;)
   {
     osDelay(1);
   }
-  /* USER CODE END StartDefaultTask */
-}
-
-/* USER CODE BEGIN Header_StartRedLEDTask */
-/**
-* @brief Function implementing the RedLEDTask thread.
-* @param argument: Not used
-* @retval None
-*/
-/* USER CODE END Header_StartRedLEDTask */
-void StartRedLEDTask(void *argument)
-{
-  /* USER CODE BEGIN StartRedLEDTask */
-  /* Infinite loop */
-  for(;;)
-  {
-    HAL_GPIO_TogglePin(LED0_GPIO_Port,LED0_Pin);
-    osDelay(500);
-  }
-  /* USER CODE END StartRedLEDTask */
+  /* USER CODE END StartLightSenserTask */
 }
 
 /* USER CODE BEGIN Header_StartUSART1Task */
@@ -205,8 +253,9 @@ void StartUSART1Task(void *argument)
   /* Infinite loop */
   for(;;)
   {
-    HAL_UART_Transmit(&huart1, (uint8_t *)msg, strlen(msg), 1000);
-    osDelay(500);
+
+    //HAL_UART_Transmit(&huart1,(uint8_t*)msg,sizeof(msg),1000);
+    osDelay(1);
   }
   /* USER CODE END StartUSART1Task */
 }
@@ -224,6 +273,7 @@ void StartTFTLCDTask(void *argument)
   /* Infinite loop */
   for(;;)
   {
+    //LCD_ShowString(10, 10, 200, 30, 16, (u8*)"HELLO");
     osDelay(1);
   }
   /* USER CODE END StartTFTLCDTask */

@@ -27,6 +27,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "tftlcd.h"
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -94,9 +95,14 @@ int main(void)
   MX_FSMC_Init();
   MX_USART1_UART_Init();
   MX_ADC1_Init();
+  MX_ADC3_Init();
   /* USER CODE BEGIN 2 */
-  LCD_Init();
-  LCD_Display_Dir(0);
+  TFTLCD_Init();
+  FRONT_COLOR = RED;   // 前景色为红色
+  BACK_COLOR = WHITE;  // 背景色为白色
+
+
+
   /* USER CODE END 2 */
 
   /* Init scheduler */
@@ -110,8 +116,14 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  LCD_Clear(WHITE);
-  LCD_ShowString(50, 50, 300, 20, 24, (uint8_t*)"zhangzhichao 2301061121");
+  if (HAL_ADCEx_Calibration_Start(&hadc1)!=HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_ADCEx_Calibration_Start(&hadc3)!=HAL_OK)
+  {
+    Error_Handler();
+  }
 
   while (1)
   {
