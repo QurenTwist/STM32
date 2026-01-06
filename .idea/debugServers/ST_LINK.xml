@@ -1,5 +1,5 @@
 <component name="DebugServers">
-  <stlink-debug-target name="ST-LINK" uniqueID="9a098780-2b8b-47bf-96c4-c2f2c1953f5d" selected="true">
+  <stlink-debug-target name="ST-LINK" uniqueID="8859c87b-02cf-40f8-bb43-4751d98ea947">
     <debugger version="1">
       <debugger kind="GDB" isBundled="true" />
       <env />
@@ -7,7 +7,7 @@
     <gdbserver exe="E:\CubeCLT\STM32CubeCLT_1.18.0\STLink-gdb-server\bin\ST-LINK_gdbserver.exe" programmer="E:\CubeCLT\STM32CubeCLT_1.18.0\STM32CubeProgrammer\bin" />
     <st-link />
     <device interface="SWD" />
-    <connection extended-remote="false" port="61234" warmup-ms="500" />
+    <connection port="61234" warmup-ms="500" />
     <swo enabled="false" port="61235" />
   </stlink-debug-target>
 </component>
