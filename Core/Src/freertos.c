@@ -44,10 +44,12 @@
 char message[50]={};
 int len=0;
 typedef struct {
-  float temp_voltage;
-  float light_voltage;
-  float Temperature;
-  float Illumination;
+  uint32_t raw_temp;
+  uint32_t raw_light;
+  uint32_t temp_voltage;
+  uint32_t light_voltage;
+  uint32_t Temperature;
+  uint32_t Illumination;
 } Sensor;
 
 
@@ -63,19 +65,12 @@ typedef struct {
 /* USER CODE BEGIN Variables */
 
 /* USER CODE END Variables */
-/* Definitions for NTCTask */
-osThreadId_t NTCTaskHandle;
-const osThreadAttr_t NTCTask_attributes = {
-  .name = "NTCTask",
+/* Definitions for SensorTask */
+osThreadId_t SensorTaskHandle;
+const osThreadAttr_t SensorTask_attributes = {
+  .name = "SensorTask",
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityNormal,
-};
-/* Definitions for LightSensorTask */
-osThreadId_t LightSensorTaskHandle;
-const osThreadAttr_t LightSensorTask_attributes = {
-  .name = "LightSensorTask",
-  .stack_size = 128 * 4,
-  .priority = (osPriority_t) osPriorityLow,
 };
 /* Definitions for USART1Task */
 osThreadId_t USART1TaskHandle;
@@ -91,16 +86,23 @@ const osThreadAttr_t TFTLCDTask_attributes = {
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityLow,
 };
+/* Definitions for SendDataTask */
+osThreadId_t SendDataTaskHandle;
+const osThreadAttr_t SendDataTask_attributes = {
+  .name = "SendDataTask",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityLow,
+};
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
 
 /* USER CODE END FunctionPrototypes */
 
-void StartNTCTask(void *argument);
-void StartLightSenserTask(void *argument);
+void StartSensorTask(void *argument);
 void StartUSART1Task(void *argument);
 void StartTFTLCDTask(void *argument);
+void StartSendDataTask(void *argument);
 
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
@@ -148,17 +150,17 @@ void MX_FREERTOS_Init(void) {
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
-  /* creation of NTCTask */
-  NTCTaskHandle = osThreadNew(StartNTCTask, NULL, &NTCTask_attributes);
-
-  /* creation of LightSensorTask */
-  LightSensorTaskHandle = osThreadNew(StartLightSenserTask, NULL, &LightSensorTask_attributes);
+  /* creation of SensorTask */
+  SensorTaskHandle = osThreadNew(StartSensorTask, NULL, &SensorTask_attributes);
 
   /* creation of USART1Task */
   USART1TaskHandle = osThreadNew(StartUSART1Task, NULL, &USART1Task_attributes);
 
   /* creation of TFTLCDTask */
   TFTLCDTaskHandle = osThreadNew(StartTFTLCDTask, NULL, &TFTLCDTask_attributes);
+
+  /* creation of SendDataTask */
+  SendDataTaskHandle = osThreadNew(StartSendDataTask, NULL, &SendDataTask_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -170,73 +172,107 @@ void MX_FREERTOS_Init(void) {
 
 }
 
-/* USER CODE BEGIN Header_StartNTCTask */
+/* USER CODE BEGIN Header_StartSensorTask */
 /**
-  * @brief  Function implementing the NTCTask thread.
+  * @brief  Function implementing the SensorTask thread.
   * @param  argument: Not used
   * @retval None
   */
 
 
-/* USER CODE END Header_StartNTCTask */
-void StartNTCTask(void *argument)
+/* USER CODE END Header_StartSensorTask */
+void StartSensorTask(void *argument)
 {
-  /* USER CODE BEGIN StartNTCTask */
-  Sensor sensordata;
-  uint32_t raw_temp=0;
-  uint32_t temp_voltage=0;
-  uint32_t Temperature=0;
+  /* USER CODE BEGIN StartSensorTask */
   /* Infinite loop */
+
+  Sensor sensordata;//传感器结构体
+
+  /* Infinite loop */
+
+  if (HAL_ADCEx_Calibration_Start(&hadc1)!=HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_ADCEx_Calibration_Start(&hadc3)!=HAL_OK)
+  {
+    Error_Handler();
+  }
+
   for(;;)
   {
+    //读取温度传感器数据
     if (HAL_ADC_Start(&hadc1)!=HAL_OK)
     {Error_Handler();}
+    if (HAL_ADC_Start(&hadc3)!=HAL_OK)
+    {Error_Handler();}
+
     if (HAL_ADC_PollForConversion(&hadc1,500)==HAL_OK)
     {
-      raw_temp=HAL_ADC_GetValue(&hadc1); //获取ADC值
-      HAL_ADC_Stop(&hadc1);
-      temp_voltage=raw_temp*3.3/4095.0*1000; //计算电压值，单位mv
-      Temperature=(uint32_t) (Calculate_NTC_Temperature(raw_temp*3.3/4095.0f)*100); //计算温度值，单位摄氏度
+      sensordata.raw_temp=HAL_ADC_GetValue(&hadc1); //获取ADC值
+      sensordata.temp_voltage=sensordata.raw_temp*3.3/4095.0*1000; //计算电压值，单位mv
+      sensordata.Temperature=(uint32_t) (Calculate_NTC_Temperature(sensordata.raw_temp*3.3/4095.0f)*100); //计算温度值，单位摄氏度
 
 
       // 使用的是 STM32 的标准库（非 CMSIS 或 FPU 支持），而 sprintf() 不支持浮点数！
       // 在没有启用 FPU（浮点单元）的 STM32 上，标准 printf / sprintf 默认不支持 %f 格式符！
 
 
-      sprintf(message, "Temp_voltage:%lu mV\r\n", temp_voltage);
-      HAL_UART_Transmit(&huart1, (uint8_t*)message, strlen(message), 1000);
+      sprintf(message, "Raw_temp:%lu mV\r\n", sensordata.raw_temp);
+      HAL_UART_Transmit(&huart2, (uint8_t*)message, strlen(message), 1000);
+
+      sprintf(message, "Temp_voltage:%lu mV\r\n", sensordata.temp_voltage);
+      HAL_UART_Transmit(&huart2, (uint8_t*)message, strlen(message), 1000);
 
       sprintf(message, "Temperature:%ld.%02ld C\r\n",
-              Temperature / 100, abs(Temperature % 100));
+              sensordata.Temperature / 100, abs(sensordata.Temperature % 100));
 
       HAL_UART_Transmit(&huart1, (uint8_t*)message, strlen(message), 1000);
-
-      //LCD_ShowString(10,10,100, 30, 16, (u8*)message);
+      // HAL_UART_Transmit(&huart3, (uint8_t*)message, strlen(message), 1000);
+      LCD_ShowString(10,10,300, 30, 16, (u8*)message);
     }
     else
     {Error_Handler();}
 
+    //读取光照传感器数据
+
+    if (HAL_ADC_PollForConversion(&hadc3,500)==HAL_OK)
+    {
+      sensordata.raw_light=HAL_ADC_GetValue(&hadc3); //获取ADC值
+      sensordata.light_voltage=sensordata.raw_light*3.3/4095.0*1000; //计算电压值，单位mv
+      sensordata.Illumination = (uint32_t)(Calculate_Light_Intensity(sensordata.raw_light) * 100); //计算温度值，单位摄氏度
+
+      // 使用的是 STM32 的标准库（非 CMSIS 或 FPU 支持），而 sprintf() 不支持浮点数！
+      // 在没有启用 FPU（浮点单元）的 STM32 上，标准 printf / sprintf 默认不支持 %f 格式符！
+
+      sprintf(message, "Raw_light:%lu mV\r\n", sensordata.raw_light);
+      HAL_UART_Transmit(&huart2, (uint8_t*)message, strlen(message), 1000);
+
+      sprintf(message, "Light_voltage:%lu mV\r\n", sensordata.light_voltage);
+      HAL_UART_Transmit(&huart2, (uint8_t*)message, strlen(message), 1000);
+
+      sprintf(message, "Illumination:%ld.%02ld Lux\r\n",
+              sensordata.Illumination / 100, abs(sensordata.Illumination % 100));
+
+      HAL_UART_Transmit(&huart1, (uint8_t*)message, strlen(message), 1000);
+     // HAL_UART_Transmit(&huart3, (uint8_t*)message, strlen(message), 1000);
+      LCD_ShowString(10,30,300, 30, 16, (u8*)message);
+    }
+    else
+    {Error_Handler();}
+
+    float vofa_data[2] = {
+      sensordata.Temperature / 100.0f,
+      sensordata.Illumination / 100.0f
+  };
+
+    HAL_UART_Transmit(&huart2, (uint8_t*)vofa_data, sizeof(vofa_data), 100);
+
     osDelay(500);
   }
-  /* USER CODE END StartNTCTask */
-}
 
-/* USER CODE BEGIN Header_StartLightSenserTask */
-/**
-* @brief Function implementing the LightSensorTask thread.
-* @param argument: Not used
-* @retval None
-*/
-/* USER CODE END Header_StartLightSenserTask */
-void StartLightSenserTask(void *argument)
-{
-  /* USER CODE BEGIN StartLightSenserTask */
-  /* Infinite loop */
-  for(;;)
-  {
-    osDelay(1);
-  }
-  /* USER CODE END StartLightSenserTask */
+
+  /* USER CODE END StartSensorTask */
 }
 
 /* USER CODE BEGIN Header_StartUSART1Task */
@@ -273,10 +309,28 @@ void StartTFTLCDTask(void *argument)
   /* Infinite loop */
   for(;;)
   {
-    //LCD_ShowString(10, 10, 200, 30, 16, (u8*)"HELLO");
+    LCD_ShowString(10, 400, 200, 30, 16, (u8*)"HELLO");
     osDelay(1);
   }
   /* USER CODE END StartTFTLCDTask */
+}
+
+/* USER CODE BEGIN Header_StartSendDataTask */
+/**
+* @brief Function implementing the SendDataTask thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartSendDataTask */
+void StartSendDataTask(void *argument)
+{
+  /* USER CODE BEGIN StartSendDataTask */
+  /* Infinite loop */
+  for(;;)
+  {
+    osDelay(1);
+  }
+  /* USER CODE END StartSendDataTask */
 }
 
 /* Private application code --------------------------------------------------*/
