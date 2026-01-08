@@ -1,4 +1,3 @@
-
 /* USER CODE BEGIN Header */
 /**
   ******************************************************************************
@@ -431,6 +430,8 @@ void StartMotorTask(void *argument)
       {
         uint8_t motor_state = HAL_GPIO_ReadPin(MOTOR_IN1_GPIO_Port, MOTOR_IN1_Pin);
         HAL_GPIO_WritePin(MOTOR_IN1_GPIO_Port, MOTOR_IN1_Pin, !motor_state);//电机状态翻转
+        HAL_GPIO_WritePin(BEEP_GPIO_Port, BEEP_Pin, !motor_state);
+
       }
     }
 
@@ -458,3 +459,4 @@ void KEY_SCAN()
 
 }
 /* USER CODE END Application */
+
