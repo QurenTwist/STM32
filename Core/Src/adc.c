@@ -286,96 +286,84 @@ void HAL_ADC_MspDeInit(ADC_HandleTypeDef* adcHandle)
  * @param v_adc: ADC 采集到的电压值（单位：V），范围 [0, 3.3]
  * @return 温度（单位：°C）
  */
-float Calculate_NTC_Temperature(float v_adc)
+float Calculate_NTC_Temperature(uint32_t raw_adc)
 {
-  float vcc = 3.3f;             // 电源电压
-  float r_ref = 100000.0f;      // 上拉电阻 R72 = 100kΩ
-  float r_ntc;                  // 当前 NTC 阻值
-  float inv_t;                  // 1/T 的中间变量
-  float t_kelvin;               // 绝对温度（K）
-  float temperature_celsius;    // 摄氏度
+  const float VCC = 3.3f;
+  const float R_REF = 100000.0f; // 上拉电阻 100kΩ
 
-  // 1. 计算当前 NTC 阻值
-  if (v_adc >= vcc) {
-    r_ntc = 0.0f;
-  } else if (v_adc <= 0.0f) {
-    r_ntc = 1e9f; // 近似无穷大
-  } else {
-    r_ntc = r_ref * v_adc / (vcc - v_adc);
+  // 转换为电压
+  float v_adc = (raw_adc * VCC) / 4095.0f;
+
+  // 防止除零或无效值
+  if (v_adc >= VCC) {
+    return -40.0f; // 极低温（开路）
+  }
+  if (v_adc <= 0.0f) {
+    return 125.0f; // 极高温（短路）
   }
 
-  // 2. 使用 Steinhart-Hart 方程计算温度
-  inv_t = 1.0f / NTC_T0 + (1.0f / NTC_BETA) * logf(r_ntc / NTC_R0);
-  t_kelvin = 1.0f / inv_t;
-  temperature_celsius = t_kelvin - 273.15f;
+  // 计算 NTC 阻值
+  float r_ntc = R_REF * v_adc / (VCC - v_adc);
 
-  return temperature_celsius;
+  // Steinhart-Hart 方程（简化 B 参数模型）
+  float inv_t = 1.0f / NTC_T0 + (1.0f / NTC_BETA) * logf(r_ntc / NTC_R0);
+  float t_kelvin = 1.0f / inv_t;
+  return t_kelvin - 273.15f;
 }
 
 /**
  * @brief 根据 ADC 原始值计算光照强度（单位：Lux）
- * @param raw_adc: ADC 原始值 (0～4095)，如 HAL_ADC_GetValue() 返回值
- * @return 光照强度（单位：Lux），若超出范围则返回 -1
+ * @param raw_adc: ADC 原始值 (0 ～ 4095)
+ * @return 光照强度（Lux），范围 [0, 100000]，float 类型
  */
 float Calculate_Light_Intensity(uint32_t raw_adc)
 {
-  const float VCC = 3.3f;            // 电源电压
-  const float R27 = 47000.0f;        // 上拉电阻 47kΩ
-  const float R26 = 1000.0f;         // 下拉电阻 1kΩ
-  const float R10 = 10000.0f;        // LDR 在 10Lux 时的典型阻值（查规格书）
-  const float GAMMA = 0.7f;          // LDR 特性参数
+  const float VCC = 3.3f;
+  const float R_PULLUP = 47000.0f; // 上拉电阻 47kΩ
+  const float R_LDR_10LUX = 10000.0f; // LDR 在 10 Lux 时的典型阻值
+  const float GAMMA = 0.7f; // 光敏电阻特性指数
 
-  if (raw_adc > 4095) return -1.0f;
+  if (raw_adc >= 4095) return 0.0f;   // 完全黑暗（LDR 阻值极大）
+  if (raw_adc == 0)    return 100000.0f; // 极亮（LDR 阻值极小）
 
   float voltage = (raw_adc * VCC) / 4095.0f;
-  if (voltage >= VCC) return 100000.0f;
-  if (voltage <= 0.0f) return 0.0f;
 
-  // 计算 LDR 的等效阻值（与 R26 并联）
-  float R_LDR_eq = (R27 * voltage) / (VCC - voltage);  // 这是 LDR || R26 的等效阻值
+  // 计算 LDR 等效阻值（忽略并联的 1kΩ 影响，或假设其已包含在校准中）
+  // 若电路是：VCC -> R_PULLUP -> ADC -> LDR -> GND
+  float r_ldr = R_PULLUP * (VCC - voltage) / voltage;
 
-  // 由于 R26 很小（1kΩ），LDR 的实际阻值远大于它
-  // 所以我们可以近似认为 R_LDR ≈ R_LDR_eq * (R26 / (R26 - R_LDR_eq))，但这复杂
-  // 更简单的方法是：假设 R26 不影响，直接用 R_LDR_eq 作为 LDR 阻值
-  // 但注意：R26 会限制最小阻值
+  // 使用幂律模型：Lux = A * (R / R0)^(-1/γ)
+  float lux = R_LDR_10LUX * powf(r_ldr / R_LDR_10LUX, -1.0f / GAMMA);
 
-  // 使用 LDR 模型计算光照
-  float lux = R10 * powf(R_LDR_eq / R10, -1.0f / GAMMA);
-
-  if (lux < 0.0f) lux = 0.0f;
+  // 限幅
+  if (lux < 0.0f)      lux = 0.0f;
   if (lux > 100000.0f) lux = 100000.0f;
 
   return lux;
 }
 
 /**
- * @brief 将土壤传感器 ADC 值转换为 0～100% 湿度百分比
- * @param adc_val: 从 ADC 读取的原始值（例如 0～4095）
- * @return int16_t: 湿度百分比 (0～100)
- *
- * 注意：
- * - DRY_ADC   = 传感器在干燥空气中测得的 ADC 值（典型值 3800～4095）
- * - WET_ADC   = 传感器完全浸入清水中测得的 ADC 值（典型值 400～800）
- * - 这两个值必须通过实际校准获得！
+ * @brief 根据 ADC 原始值计算土壤湿度百分比（0% ～ 100%）
+ * @param raw_adc: ADC 原始值 (0 ～ 4095)，注意：值越小表示越湿
+ * @return 湿度百分比（0.0 ～ 100.0），float 类型
  */
-float Calculate_Soil_Moisture(uint32_t adc_val)
+float Calculate_Soil_Moisture(uint32_t raw_adc)
 {
-  // === 校准参数（请根据你的传感器实测修改！）===
-  const uint32_t DRY_ADC = 4000;   // 干燥时 ADC 值（空气中）
-  const uint32_t WET_ADC = 600;    // 完全湿润时 ADC 值（清水中）
+  // === 请根据实际传感器校准修改以下值 ===
+  const uint32_t DRY_ADC  = 4000; // 干燥（空气中）
+  const uint32_t WET_ADC  = 600;  // 完全湿润（清水中）
 
-  // 防止除零
   if (DRY_ADC <= WET_ADC) {
-    return 0; // 配置错误，返回安全值
+    return 0.0f; // 配置错误保护
   }
 
-  // 线性映射：adc_val 越小 → 湿度越高（反向特性）
-  int32_t moisture = (int32_t)(DRY_ADC - adc_val) * 100 / (int32_t)(DRY_ADC - WET_ADC);
+  // 线性映射：raw_adc 越小 → 湿度越高
+  float moisture = (float)(DRY_ADC - raw_adc) * 100.0f / (float)(DRY_ADC - WET_ADC);
 
-  // 限制范围 0～100
-  if (moisture < 0)   moisture = 0;
-  if (moisture > 100) moisture = 100;
+  // 限幅到 [0, 100]
+  if (moisture < 0.0f)   moisture = 0.0f;
+  if (moisture > 100.0f) moisture = 100.0f;
 
-  return (uint32_t)moisture;
+  return moisture;
 }
 /* USER CODE END 1 */

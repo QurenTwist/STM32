@@ -61,9 +61,9 @@ void MX_ADC2_Init(void);
 void MX_ADC3_Init(void);
 
 /* USER CODE BEGIN Prototypes */
-  float Calculate_NTC_Temperature(float v_adc);
+  float Calculate_NTC_Temperature(uint32_t raw_adc);
   float Calculate_Light_Intensity(uint32_t raw_adc);
-  float Calculate_Soil_Moisture(uint32_t adc_val);
+  float Calculate_Soil_Moisture(uint32_t raw_adc);
 /* USER CODE END Prototypes */
 
 #ifdef __cplusplus
