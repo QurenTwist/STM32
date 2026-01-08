@@ -49,8 +49,6 @@ uint8_t light_ready=0;
 uint8_t solim_ready=0;
 uint8_t air_ready=0;
 
-uint8_t motor_start=0;
-uint8_t motor_stop=0;
 uint8_t key0_flag=0;
 uint8_t key1_flag=0;
 Sensor sensordata;
@@ -340,11 +338,7 @@ void StartTFTLCDTask(void *argument)
         sensordata.SoilMoisture / 100);
     LCD_ShowString(10,110,300, 30, 16, (u8*)message);
 
-    sprintf(message, "Air_Temp:%ld.%02ld C\r\n", sensordata.AirTemperature / 100, abs(sensordata.AirTemperature % 100));
-    LCD_ShowString(10, 130, 300, 30, 16, (u8*)message);
 
-    sprintf(message, "Air_Humi:%ld.%02ld %%\r\n", sensordata.AirHumidity / 100, abs(sensordata.AirHumidity % 100));
-    LCD_ShowString(10, 150, 300, 30, 16, (u8*)message);
 
     // 65~95 湿润
     //>95 过于湿润
@@ -352,18 +346,14 @@ void StartTFTLCDTask(void *argument)
     if (sensordata.SoilMoisture / 100 <65)
     {
       LCD_ShowString(10, 250, 300, 20, 16, (u8*)"Soil is Dry   ");
-      motor_start=1;
-      motor_stop=0;
     }
     else if (sensordata.SoilMoisture / 100 >95)
     {
       LCD_ShowString(10, 250, 300, 20, 16, (u8*)"Soil is Wet   ");
-      motor_stop=1;
     }
     else
     {
       LCD_ShowString(10, 250, 300, 20, 16, (u8*)"Soil is Humid ");
-      motor_stop=1;
     }
 
     //显示光照传感器数据
@@ -377,7 +367,11 @@ void StartTFTLCDTask(void *argument)
 
     LCD_ShowString(10,170,300, 30, 16, (u8*)message);
 
+    sprintf(message, "Air_Temp:%ld.%02ld C\r\n", sensordata.AirTemperature / 100, abs(sensordata.AirTemperature % 100));
+    LCD_ShowString(10, 190, 300, 30, 16, (u8*)message);
 
+    sprintf(message, "Air_Humi:%ld.%02ld %%\r\n", sensordata.AirHumidity / 100, abs(sensordata.AirHumidity % 100));
+    LCD_ShowString(10, 210, 300, 30, 16, (u8*)message);
 
     osDelayUntil(temp_tick);
     //osDelay(100);
@@ -483,23 +477,32 @@ void StartMotorTask(void *argument)
 {
   /* USER CODE BEGIN StartMotorTask */
   /* Infinite loop */
+  TickType_t last_wake_time;
+  const TickType_t cycle_time = pdMS_TO_TICKS(3000); // 3秒周期
+
+  // 初始化上次唤醒时间
+  last_wake_time = xTaskGetTickCount();
+
   for(;;)
   {
     //KEY_SCAN();
-    if (motor_stop)
+    uint32_t soil_moisture = sensordata.SoilMoisture / 100; // 转换回整数百分比
+
+    if (soil_moisture < 65)
     {
-      HAL_GPIO_WritePin(MOTOR_IN1_GPIO_Port, MOTOR_IN1_Pin, GPIO_PIN_RESET);//电机停止
+      // 土壤干燥：开启电机和蜂鸣器（持续3秒）
+      HAL_GPIO_WritePin(MOTOR_IN1_GPIO_Port, MOTOR_IN1_Pin, GPIO_PIN_SET);
+      HAL_GPIO_WritePin(BEEP_GPIO_Port, BEEP_Pin, GPIO_PIN_SET);
     }
-    else {
-      if (motor_start)
-      {
-        uint8_t motor_state = HAL_GPIO_ReadPin(MOTOR_IN1_GPIO_Port, MOTOR_IN1_Pin);
-        HAL_GPIO_WritePin(MOTOR_IN1_GPIO_Port, MOTOR_IN1_Pin, !motor_state);//电机状态翻转
-        HAL_GPIO_WritePin(BEEP_GPIO_Port, BEEP_Pin, !motor_state);
-      }
+    else
+    {
+      // 土壤湿润：关闭电机和蜂鸣器
+      HAL_GPIO_WritePin(MOTOR_IN1_GPIO_Port, MOTOR_IN1_Pin, GPIO_PIN_RESET);
+      HAL_GPIO_WritePin(BEEP_GPIO_Port, BEEP_Pin, GPIO_PIN_RESET);
     }
 
-    osDelay(3000);
+    // 每3秒检查一次土壤湿度并更新状态
+    vTaskDelayUntil(&last_wake_time, cycle_time);
   }
   /* USER CODE END StartMotorTask */
 }
