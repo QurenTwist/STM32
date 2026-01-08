@@ -1,9 +1,9 @@
 /* USER CODE BEGIN Header */
 /**
   ******************************************************************************
-  * @file    adc.h
+  * @file    i2c.h
   * @brief   This file contains all the function prototypes for
-  *          the adc.c file
+  *          the i2c.c file
   ******************************************************************************
   * @attention
   *
@@ -18,8 +18,8 @@
   */
 /* USER CODE END Header */
 /* Define to prevent recursive inclusion -------------------------------------*/
-#ifndef __ADC_H__
-#define __ADC_H__
+#ifndef __I2C_H__
+#define __I2C_H__
 
 #ifdef __cplusplus
 extern "C" {
@@ -29,49 +29,24 @@ extern "C" {
 #include "main.h"
 
 /* USER CODE BEGIN Includes */
-  typedef struct {
-    uint32_t raw_temp;
-    uint32_t raw_light;
-    uint32_t raw_soilm;
-    uint32_t temp_voltage;
-    uint32_t light_voltage;
-    uint32_t soilm_voltage;
-    uint32_t Temperature;
-    uint32_t SoilMoisture;
-    uint32_t Illumination;
 
-    uint32_t AirTemperature;   // AHT20 温度 * 100
-    uint32_t AirHumidity;      // AHT20 湿度 * 100
-  } Sensor;
 /* USER CODE END Includes */
 
-extern ADC_HandleTypeDef hadc1;
-
-extern ADC_HandleTypeDef hadc2;
-
-extern ADC_HandleTypeDef hadc3;
+extern I2C_HandleTypeDef hi2c2;
 
 /* USER CODE BEGIN Private defines */
 
-#define NTC_R0      10000.0f    // 25°C 时的阻值（如 10kΩ）
-#define NTC_T0      298.15f     // 25°C 对应开尔文温度
-#define NTC_BETA    3950.0f     // B 值（常见 3950、3435 等，查规格书）
-
 /* USER CODE END Private defines */
 
-void MX_ADC1_Init(void);
-void MX_ADC2_Init(void);
-void MX_ADC3_Init(void);
+void MX_I2C2_Init(void);
 
 /* USER CODE BEGIN Prototypes */
-  float Calculate_NTC_Temperature(uint32_t raw_adc);
-  float Calculate_Light_Intensity(uint32_t raw_adc);
-  float Calculate_Soil_Moisture(uint32_t raw_adc);
+
 /* USER CODE END Prototypes */
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* __ADC_H__ */
+#endif /* __I2C_H__ */
 

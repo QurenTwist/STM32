@@ -32,7 +32,7 @@
 #include "adc.h"
 #include "usart.h"
 #include "tftlcd.h"
-
+#include "aht20.h"
 
 /* USER CODE END Includes */
 
@@ -47,6 +47,8 @@
 uint8_t temp_ready=0;
 uint8_t light_ready=0;
 uint8_t solim_ready=0;
+uint8_t air_ready=0;
+
 uint8_t motor_start=0;
 uint8_t motor_stop=0;
 uint8_t key0_flag=0;
@@ -184,8 +186,10 @@ void StartSensorTask(void *argument)
 {
   /* USER CODE BEGIN StartSensorTask */
   /* Infinite loop */
+  static uint8_t aht20_initialized = 0;
+  AHT20_StatusTypeDef aht20_status;
+  AHT20_DataTypeDef aht20_data;
 
-  //传感器结构体
 
   /* Infinite loop */
 
@@ -245,6 +249,49 @@ void StartSensorTask(void *argument)
     else
     {Error_Handler();}
 
+
+    if (!aht20_initialized) {
+      // 尝试初始化 AHT20
+      aht20_status = AHT20_Init();
+      if (aht20_status == AHT20_OK) {
+        aht20_initialized = 1; // 标记为已初始化
+      } else {
+        // 初始化失败，可以选择重试或记录错误
+        // 这里简单地将数据置0并标记就绪，以便上层处理
+        sensordata.AirTemperature = 0;
+        sensordata.AirHumidity = 0;
+        air_ready = 1;
+      }
+    }
+
+    if (aht20_initialized) {
+      // 触发测量
+      aht20_status = AHT20_TriggerMeasurement();
+      if (aht20_status == AHT20_OK) {
+        osDelay(80); // 等待至少75ms让测量完成
+        // 读取数据
+        aht20_status = AHT20_ReadData(&aht20_data);
+        if (aht20_status == AHT20_OK) {
+          // 将 float 数据转换为 uint32_t (*100)，与其他传感器格式统一
+          sensordata.AirTemperature = (uint32_t)(aht20_data.temperature * 100.0f);
+          sensordata.AirHumidity = (uint32_t)(aht20_data.humidity * 100.0f);
+          air_ready = 1; // 标记数据已就绪
+        } else {
+          // 读取失败，可以保留上次值或置0
+          // 这里选择置0
+          sensordata.AirTemperature = 0;
+          sensordata.AirHumidity = 0;
+          air_ready = 1;
+        }
+      } else {
+        // 触发测量失败
+        sensordata.AirTemperature = 0;
+        sensordata.AirHumidity = 0;
+        air_ready = 1;
+      }
+    }
+
+
     osDelay(300);
   }
 
@@ -292,6 +339,12 @@ void StartTFTLCDTask(void *argument)
     sprintf(message, "Soil_Moisture:%ld \r\n",
         sensordata.SoilMoisture / 100);
     LCD_ShowString(10,110,300, 30, 16, (u8*)message);
+
+    sprintf(message, "Air_Temp:%ld.%02ld C\r\n", sensordata.AirTemperature / 100, abs(sensordata.AirTemperature % 100));
+    LCD_ShowString(10, 130, 300, 30, 16, (u8*)message);
+
+    sprintf(message, "Air_Humi:%ld.%02ld %%\r\n", sensordata.AirHumidity / 100, abs(sensordata.AirHumidity % 100));
+    LCD_ShowString(10, 150, 300, 30, 16, (u8*)message);
 
     // 65~95 湿润
     //>95 过于湿润
@@ -394,6 +447,18 @@ void StartSendDataTask(void *argument)
       light_ready = 0;
     }
 
+    if (air_ready) {
+      sprintf(message, "Air_Temperature:%ld.%02ld C\r\n", sensordata.AirTemperature / 100, abs(sensordata.AirTemperature % 100));
+      HAL_UART_Transmit(&huart1, (uint8_t*)message, strlen(message), 1000);
+      HAL_UART_Transmit(&huart2, (uint8_t*)message, strlen(message), 1000);
+
+      sprintf(message, "Air_Humidity:%ld.%02ld %%\r\n", sensordata.AirHumidity / 100, abs(sensordata.AirHumidity % 100));
+      HAL_UART_Transmit(&huart1, (uint8_t*)message, strlen(message), 1000);
+      HAL_UART_Transmit(&huart2, (uint8_t*)message, strlen(message), 1000);
+
+      air_ready = 0; // 清除标志
+    }
+
     osDelay(500);
 
   //   float vofa_data[2] = {
@@ -431,7 +496,6 @@ void StartMotorTask(void *argument)
         uint8_t motor_state = HAL_GPIO_ReadPin(MOTOR_IN1_GPIO_Port, MOTOR_IN1_Pin);
         HAL_GPIO_WritePin(MOTOR_IN1_GPIO_Port, MOTOR_IN1_Pin, !motor_state);//电机状态翻转
         HAL_GPIO_WritePin(BEEP_GPIO_Port, BEEP_Pin, !motor_state);
-
       }
     }
 

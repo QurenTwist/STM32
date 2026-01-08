@@ -34,7 +34,9 @@ enable_language(C ASM)
 # Create an executable object type
 add_executable(${CMAKE_PROJECT_NAME}
         Core/Inc/tftlcd.h
-        Core/Src/tftlcd.c)
+        Core/Src/tftlcd.c
+        Core/Inc/aht20.h
+        Core/Src/aht20.c)
 
 # Add STM32CubeMX generated sources
 add_subdirectory(cmake/stm32cubemx)

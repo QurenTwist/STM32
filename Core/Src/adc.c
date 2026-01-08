@@ -373,4 +373,7 @@ float Calculate_Soil_Moisture(uint32_t raw_adc)
 
   return moisture;
 }
+
+
+
 /* USER CODE END 1 */
