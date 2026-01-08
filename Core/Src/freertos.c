@@ -1,3 +1,4 @@
+
 /* USER CODE BEGIN Header */
 /**
   ******************************************************************************
@@ -226,7 +227,7 @@ void StartSensorTask(void *argument)
     {
       sensordata.raw_soilm=HAL_ADC_GetValue(&hadc2); //获取ADC值
       sensordata.soilm_voltage=sensordata.raw_soilm*3.3/4095.0*1000; //计算电压值，单位mv
-      sensordata.SoilMoisture = (uint32_t)(Calculate_Soil_Moisture(sensordata.raw_soilm) * 100); //计算土壤湿度值，单位%
+      sensordata.SoilMoisture = (uint32_t)(Calculate_Soil_Moisture(sensordata.raw_soilm) * 100); //计算土壤湿度
       solim_ready=1;
     }
     else
@@ -238,7 +239,7 @@ void StartSensorTask(void *argument)
     {
       sensordata.raw_light=HAL_ADC_GetValue(&hadc3); //获取ADC值
       sensordata.light_voltage=sensordata.raw_light*3.3/4095.0*1000; //计算电压值，单位mv
-      sensordata.Illumination = (uint32_t)(Calculate_Light_Intensity(sensordata.raw_light) * 100); //计算光照强度，单位Lux
+      sensordata.Illumination = (uint32_t)(Calculate_Light_Intensity(sensordata.raw_light) * 100); //计算温度值，单位摄氏度
       light_ready=1;
     }
     else
@@ -285,19 +286,22 @@ void StartTFTLCDTask(void *argument)
     sprintf(message, "Raw_soilm:%lu mV\r\n", sensordata.raw_soilm);
     LCD_ShowString(10,70,300, 30, 16, (u8*)message);
 
-    sprintf(message, "Soilm_voltage:%lu mV\r\n", sensordata.soilm_voltage);
+    sprintf(message, "Raw_soilm:%lu mV\r\n", sensordata.soilm_voltage);
     LCD_ShowString(10,90,300, 30, 16, (u8*)message);
 
     sprintf(message, "Soil_Moisture:%ld \r\n",
         sensordata.SoilMoisture / 100);
     LCD_ShowString(10,110,300, 30, 16, (u8*)message);
 
-    if (sensordata.SoilMoisture / 100 <2000)
+    // 65~95 湿润
+    //>95 过于湿润
+    //<65 干燥
+    if (sensordata.SoilMoisture / 100 <65)
     {
       LCD_ShowString(10, 250, 300, 20, 16, (u8*)"Soil is Dry   ");
       motor_flag=1;
     }
-    else if (sensordata.SoilMoisture / 100 >2300)
+    else if (sensordata.SoilMoisture / 100 >95)
     {
       LCD_ShowString(10, 250, 300, 20, 16, (u8*)"Soil is Wet   ");
     }
@@ -354,9 +358,9 @@ void StartSendDataTask(void *argument)
 
       temp_ready = 0;
     }
-    //2000-2300 湿润
-    //>2300 过于湿润
-    //<2000 干燥
+    // 65~95 湿润
+    //>95 过于湿润
+    //<65 干燥
     if (solim_ready) {
       //传输原始土壤湿度数据
       sprintf(message, "Raw_soilm:%lu mV\r\n", sensordata.raw_soilm);
@@ -445,4 +449,3 @@ void KEY_SCAN()
 
 }
 /* USER CODE END Application */
-
