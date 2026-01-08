@@ -48,7 +48,8 @@
 uint8_t temp_ready=0;
 uint8_t light_ready=0;
 uint8_t solim_ready=0;
-uint8_t motor_flag=0;
+uint8_t motor_start=0;
+uint8_t motor_stop=0;
 uint8_t key0_flag=0;
 uint8_t key1_flag=0;
 Sensor sensordata;
@@ -299,15 +300,18 @@ void StartTFTLCDTask(void *argument)
     if (sensordata.SoilMoisture / 100 <65)
     {
       LCD_ShowString(10, 250, 300, 20, 16, (u8*)"Soil is Dry   ");
-      motor_flag=1;
+      motor_start=1;
+      motor_stop=0;
     }
     else if (sensordata.SoilMoisture / 100 >95)
     {
       LCD_ShowString(10, 250, 300, 20, 16, (u8*)"Soil is Wet   ");
+      motor_stop=1;
     }
     else
     {
       LCD_ShowString(10, 250, 300, 20, 16, (u8*)"Soil is Humid ");
+      motor_stop=1;
     }
 
     //显示光照传感器数据
@@ -418,11 +422,16 @@ void StartMotorTask(void *argument)
   for(;;)
   {
     //KEY_SCAN();
-
-    if (motor_flag) {
-      uint8_t motor_state = HAL_GPIO_ReadPin(MOTOR_IN1_GPIO_Port, MOTOR_IN1_Pin);
-      HAL_GPIO_WritePin(MOTOR_IN1_GPIO_Port, MOTOR_IN1_Pin, !motor_state);//电机状态翻转
-      motor_flag=0;
+    if (motor_stop)
+    {
+      HAL_GPIO_WritePin(MOTOR_IN1_GPIO_Port, MOTOR_IN1_Pin, GPIO_PIN_RESET);//电机停止
+    }
+    else {
+      if (motor_start)
+      {
+        uint8_t motor_state = HAL_GPIO_ReadPin(MOTOR_IN1_GPIO_Port, MOTOR_IN1_Pin);
+        HAL_GPIO_WritePin(MOTOR_IN1_GPIO_Port, MOTOR_IN1_Pin, !motor_state);//电机状态翻转
+      }
     }
 
     osDelay(3000);
