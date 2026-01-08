@@ -102,6 +102,7 @@ int main(void)
   MX_ADC1_Init();
   MX_ADC3_Init();
   MX_USART2_UART_Init();
+  MX_ADC2_Init();
   /* USER CODE BEGIN 2 */
   TFTLCD_Init();
   FRONT_COLOR = RED;   // 前景色为红色
@@ -109,8 +110,8 @@ int main(void)
 
 
   //HAL_GPIO_WritePin(CH_PD_GPIO_Port, CH_PD_Pin, GPIO_PIN_SET); // 拉高使能
-  HAL_Delay(300); // 等待 ESP8266 启动
-  ESP8266_Reconnect_VOFA();// 连接到 VOFA+ 服务器
+  // HAL_Delay(300); // 等待 ESP8266 启动
+  // ESP8266_Reconnect_VOFA();// 连接到 VOFA+ 服务器
 
 
   /* USER CODE END 2 */
@@ -186,6 +187,10 @@ void SystemClock_Config(void)
 
 /* USER CODE BEGIN 4 */
 
+
+
+
+
 HAL_StatusTypeDef ESP8266_SendCmd(char *cmd, char *resp, uint32_t timeout_ms) {
   // 清空接收缓冲区
   uint8_t dummy;
@@ -193,9 +198,9 @@ HAL_StatusTypeDef ESP8266_SendCmd(char *cmd, char *resp, uint32_t timeout_ms) {
 
   // 发送命令
   HAL_UART_Transmit(&huart1, (uint8_t*)cmd, strlen(cmd), 1000);
-  if (HAL_UART_Transmit(&huart2, (uint8_t*)cmd, strlen(cmd), HAL_MAX_DELAY))
+  if (HAL_UART_Transmit(&huart2, (uint8_t*)cmd, strlen(cmd), HAL_MAX_DELAY)==HAL_OK)
     {
-
+    LCD_ShowString(10, 400, 200, 30, 16, (u8*)"Sendsuccess");
     }
 
   HAL_Delay(200); // 增加延时
@@ -281,6 +286,9 @@ continue_config:
 
   LCD_ShowString(10, 250, 300, 20, 16, (u8*)"ESP OK!");
 }
+
+
+
 
 
 /* USER CODE END 4 */
